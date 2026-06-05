@@ -42,7 +42,13 @@ def run_lfi_scan(target_url, endpoints, forms):
                         if indicator in content:
                             res = f"Possible LFI on {test_url} [Param: {param_name}]"
                             print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
-                            results.append({"type": "lfi", "desc": res, "severity": "Critical"})
+                            results.append({
+                                "type": "lfi", 
+                                "desc": res, 
+                                "severity": "Critical",
+                                "vuln_url": url, 
+                                "param": param_name
+                            })
                             break
                 except requests.RequestException:
                     continue

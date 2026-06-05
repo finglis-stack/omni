@@ -1,6 +1,7 @@
 import requests
 from colorama import Fore, Style
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from core.smart_fuzzer import SmartFuzzer
 
 SQL_ERRORS = [
     "you have an error in your sql syntax",
@@ -19,8 +20,8 @@ PAYLOADS = [
     "\" OR \"1\"=\"1"
 ]
 
-def run_sqli_scan(target_url, endpoints, forms):
-    print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running SQL Injection Scan...")
+def run_sqli_scan(target_url, endpoints, forms, waf_engine=None):
+    print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running SQL Injection Scan (WAF Evasion Enabled)...")
     results = []
 
     # 1. Scan query parameters in endpoints
@@ -33,6 +34,9 @@ def run_sqli_scan(target_url, endpoints, forms):
             
         for param_name in params:
             for payload in PAYLOADS:
+                if waf_engine:
+                    payload = waf_engine.evade(payload)
+                    
                 test_params = params.copy()
                 test_params[param_name] = [payload]
                 
@@ -40,7 +44,11 @@ def run_sqli_scan(target_url, endpoints, forms):
                 test_url = urlunparse(parsed_url._replace(query=new_query))
                 
                 try:
-                    r = requests.get(test_url, timeout=5)
+                    if waf_engine:
+                        r = waf_engine.request('GET', test_url, timeout=5)
+                    else:
+                        r = requests.get(test_url, timeout=5)
+                        
                     content = r.text.lower()
                     
                     for error in SQL_ERRORS:
@@ -58,15 +66,24 @@ def run_sqli_scan(target_url, endpoints, forms):
         method = form["method"]
         
         for payload in PAYLOADS:
+            if waf_engine:
+                payload = waf_engine.evade(payload)
+                
             data = {}
             for input_field in form["inputs"]:
                 data[input_field["name"]] = payload
                 
             try:
                 if method == 'post':
-                    r = requests.post(action, data=data, timeout=5)
+                    if waf_engine:
+                        r = waf_engine.request('POST', action, data=data, timeout=5)
+                    else:
+                        r = requests.post(action, data=data, timeout=5)
                 else:
-                    r = requests.get(action, params=data, timeout=5)
+                    if waf_engine:
+                        r = waf_engine.request('GET', action, params=data, timeout=5)
+                    else:
+                        r = requests.get(action, params=data, timeout=5)
                     
                 content = r.text.lower()
                 for error in SQL_ERRORS:

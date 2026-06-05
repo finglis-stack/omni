@@ -3,3 +3,5 @@ beautifulsoup4
 colorama
 tqdm
 jinja2
+dnspython
+aiohttp

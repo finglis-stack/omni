@@ -47,7 +47,7 @@ def _enum_users_rest(base):
     return users
 
 def _enum_users_author(base):
-    """Enumerate users via ?author=N brute-force."""
+    """Enumerate users via ?author=N."""
     users = []
     for i in range(1, 20):
         try:
