@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniScan — Command Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h1 class="logo">Omni<span class="accent">Scan</span></h1>
+            <p class="version">v4.0 — Command Center</p>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-link active" data-tab="dashboard">
+                <span class="nav-icon">◉</span> Dashboard
+            </a>
+            <a href="#" class="nav-link" data-tab="feed">
+                <span class="nav-icon">⚡</span> Live Feed
+            </a>
+            <a href="#" class="nav-link" data-tab="graph">
+                <span class="nav-icon">◎</span> Attack Graph
+            </a>
+            <a href="#" class="nav-link" data-tab="ai">
+                <span class="nav-icon">✦</span> AI Analysis
+            </a>
+        </nav>
+
+        <div class="sidebar-config">
+            <h3 class="config-title">Scan Configuration</h3>
+            <div class="form-group">
+                <label>Target URL</label>
+                <input type="text" id="input-url" class="input-field" placeholder="https://target.com/">
+            </div>
+            <div class="form-group">
+                <label>Threads</label>
+                <input type="number" id="input-threads" class="input-field" value="5" min="1" max="50">
+            </div>
+            <div class="form-group">
+                <label>Stealth Profile</label>
+                <select id="input-stealth" class="select-field">
+                    <option value="none">None (Lab)</option>
+                    <option value="light" selected>Light</option>
+                    <option value="normal">Normal</option>
+                    <option value="paranoid">Paranoid</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Impersonate TLS</label>
+                <select id="input-impersonate" class="select-field">
+                    <option value="">Auto (Random)</option>
+                    <option value="chrome">Chrome</option>
+                    <option value="firefox">Firefox</option>
+                    <option value="safari">Safari</option>
+                    <option value="edge">Edge</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Proxy (optional)</label>
+                <input type="text" id="input-proxy" class="input-field" placeholder="socks5://127.0.0.1:9050">
+            </div>
+            <div class="form-group">
+                <label>OpenRouter API Key</label>
+                <input type="password" id="input-apikey" class="input-field" placeholder="sk-or-...">
+            </div>
+            <button id="btn-start" class="btn-primary" onclick="startScan()">
+                Launch Scan
+            </button>
+        </div>
+
+        <div class="sidebar-footer">
+            <p>Made by Félix Inglis-Chevarie</p>
+            <p>Marie-Anne High School</p>
+        </div>
+    </aside>
+
+    <!-- ═══════════════════ MAIN CONTENT ═══════════════════ -->
+    <main class="main-content">
+
+        <!-- ─── Status Bar ─── -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span class="status-dot" id="status-dot"></span>
+                <span id="status-text">Idle — Waiting for scan</span>
+            </div>
+            <div class="status-right">
+                <span id="target-display"></span>
+            </div>
+        </div>
+
+        <!-- ─── Phase Indicator ─── -->
+        <div id="phase-bar" class="phase-indicator">
+            <div class="phase-dot" data-phase="1"><span>WAF</span></div>
+            <div class="phase-line"></div>
+            <div class="phase-dot" data-phase="2"><span>Recon</span></div>
+            <div class="phase-line"></div>
+            <div class="phase-dot" data-phase="3"><span>Crawl</span></div>
+            <div class="phase-line"></div>
+            <div class="phase-dot" data-phase="4"><span>Scan</span></div>
+            <div class="phase-line"></div>
+            <div class="phase-dot" data-phase="5"><span>WP</span></div>
+            <div class="phase-line"></div>
+            <div class="phase-dot" data-phase="6"><span>Exploit</span></div>
+            <div class="phase-line"></div>
+            <div class="phase-dot" data-phase="7"><span>Report</span></div>
+        </div>
+
+        <!-- ═══════ TAB: DASHBOARD ═══════ -->
+        <div class="tab-content active" id="tab-dashboard">
+            <!-- Severity Counters -->
+            <div class="stats-grid">
+                <div class="card stat-card critical-glow">
+                    <div class="stat-label">Critical</div>
+                    <div class="stat-number" id="count-critical">0</div>
+                </div>
+                <div class="card stat-card high-glow">
+                    <div class="stat-label">High</div>
+                    <div class="stat-number" id="count-high">0</div>
+                </div>
+                <div class="card stat-card medium-glow">
+                    <div class="stat-label">Medium</div>
+                    <div class="stat-number" id="count-medium">0</div>
+                </div>
+                <div class="card stat-card low-glow">
+                    <div class="stat-label">Low</div>
+                    <div class="stat-number" id="count-low">0</div>
+                </div>
+                <div class="card stat-card info-glow">
+                    <div class="stat-label">Info</div>
+                    <div class="stat-number" id="count-info">0</div>
+                </div>
+                <div class="card stat-card total-glow">
+                    <div class="stat-label">Total</div>
+                    <div class="stat-number" id="count-total">0</div>
+                </div>
+            </div>
+
+            <!-- Risk Gauge + Recent Findings -->
+            <div class="dashboard-grid">
+                <div class="card gauge-card">
+                    <h3 class="card-title">Risk Score</h3>
+                    <div id="gauge-container" class="gauge-container">
+                        <svg viewBox="0 0 200 140" class="gauge-svg">
+                            <path d="M 20 120 A 80 80 0 0 1 180 120" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="12" stroke-linecap="round"/>
+                            <path id="gauge-arc" d="M 20 120 A 80 80 0 0 1 180 120" fill="none" stroke="#30d158" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 251"/>
+                            <text id="gauge-score" x="100" y="100" text-anchor="middle" fill="white" font-size="36" font-weight="700">—</text>
+                            <text id="gauge-grade" x="100" y="125" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="16" font-weight="600">N/A</text>
+                        </svg>
+                        <p id="gauge-summary" class="gauge-summary">Launch a scan and run AI analysis</p>
+                    </div>
+                    <button class="btn-primary btn-small" onclick="requestAI()" id="btn-ai">
+                        ✦ Run AI Analysis
+                    </button>
+                </div>
+
+                <div class="card recent-card">
+                    <h3 class="card-title">Recent Findings</h3>
+                    <div id="recent-list" class="recent-list">
+                        <p class="empty-state">No findings yet. Start a scan.</p>
+                    </div>
+                </div>
+
+                <div class="card endpoints-card">
+                    <h3 class="card-title">Discovery</h3>
+                    <div class="discovery-stats">
+                        <div class="discovery-item">
+                            <span class="discovery-number" id="count-endpoints">0</span>
+                            <span class="discovery-label">Endpoints</span>
+                        </div>
+                        <div class="discovery-item">
+                            <span class="discovery-number" id="count-forms">0</span>
+                            <span class="discovery-label">Forms</span>
+                        </div>
+                        <div class="discovery-item">
+                            <span class="discovery-number" id="count-modules">16</span>
+                            <span class="discovery-label">Modules</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════ TAB: LIVE FEED ═══════ -->
+        <div class="tab-content" id="tab-feed">
+            <div class="card feed-card">
+                <h3 class="card-title">Live Vulnerability Feed</h3>
+                <div id="feed-list" class="feed-list">
+                    <p class="empty-state">Waiting for findings...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════ TAB: ATTACK GRAPH ═══════ -->
+        <div class="tab-content" id="tab-graph">
+            <div class="card graph-card">
+                <h3 class="card-title">Interactive Attack Graph</h3>
+                <div id="attack-graph" class="attack-graph">
+                    <p class="empty-state">Complete a scan to visualize the attack surface.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════ TAB: AI ANALYSIS ═══════ -->
+        <div class="tab-content" id="tab-ai">
+            <div class="card ai-card">
+                <div class="tab-bar" id="ai-tabs">
+                    <button class="tab-btn active" data-aitab="summary">Executive Summary</button>
+                    <button class="tab-btn" data-aitab="narrative">Attack Narrative</button>
+                    <button class="tab-btn" data-aitab="remediation">Remediation Plan</button>
+                    <button class="tab-btn" data-aitab="risk">Risk Breakdown</button>
+                </div>
+                <div class="ai-tab-content active" id="aitab-summary">
+                    <div class="markdown-body" id="ai-summary">
+                        <p class="empty-state">Click "Run AI Analysis" after completing a scan.</p>
+                    </div>
+                </div>
+                <div class="ai-tab-content" id="aitab-narrative">
+                    <div class="markdown-body" id="ai-narrative"></div>
+                </div>
+                <div class="ai-tab-content" id="aitab-remediation">
+                    <div class="markdown-body" id="ai-remediation"></div>
+                </div>
+                <div class="ai-tab-content" id="aitab-risk">
+                    <div id="ai-risk-breakdown" class="risk-breakdown"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ─── Toast Container ─── -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
