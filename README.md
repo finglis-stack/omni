@@ -1,5 +1,7 @@
 # OmniScan v3.0
 
+*Fait par Félix Inglis-Chevarie, école secondaire Marie-Anne*
+
 OmniScan is an **Advanced Web Vulnerability Scanner and Auto-Exploitation Framework**, heavily optimized for speed, modularity, and offensive capabilities. 
 
 Built with an asynchronous core and a dynamic plugin architecture, OmniScan goes beyond passive scanning. It actively discovers vulnerabilities, attempts exploitation, and automatically generates concrete Proof of Concept (PoC) HTML pages and data dumps to validate the impact of its findings.
