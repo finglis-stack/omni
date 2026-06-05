@@ -1,7 +1,7 @@
 import dns.resolver
 import dns.zone
 import dns.query
-import requests
+
 from urllib.parse import urlparse
 from colorama import Fore, Style
 
@@ -73,11 +73,11 @@ def check_zone_transfer(domain, results):
         pass
 
 
-def get_subdomains_crtsh(domain, results):
+def get_subdomains_crtsh(domain, results, session):
     """Fetch subdomains from crt.sh Certificate Transparency logs."""
     try:
         url = f"https://crt.sh/?q=%25.{domain}&output=json"
-        r = requests.get(url, timeout=10)
+        r = session.get(url, timeout=10)
         if r.status_code == 200:
             data = r.json()
             subdomains = set()
@@ -95,12 +95,15 @@ def get_subdomains_crtsh(domain, results):
         print(f"  [{Fore.YELLOW}!{Style.RESET_ALL}] Failed to fetch subdomains from crt.sh")
 
 
-def run_dns_recon(target_url):
+def run_dns_recon(target_url, session=None):
     """
     Main DNS Recon Module.
     Gathers standard records, checks SPF/DMARC, tries AXFR, and fetches subdomains.
     """
     print(f"\n[{Fore.BLUE}*{Style.RESET_ALL}] Running DNS Reconnaissance Module...")
+    if session is None:
+        import requests as session
+
     results = []
     domain = urlparse(target_url).netloc.split(':')[0]
     if domain.startswith("www."):
@@ -124,6 +127,6 @@ def run_dns_recon(target_url):
     check_zone_transfer(domain, results)
     
     # OSINT / Subdomains
-    get_subdomains_crtsh(domain, results)
+    get_subdomains_crtsh(domain, results, session)
     
     return results

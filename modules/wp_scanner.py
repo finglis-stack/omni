@@ -10,29 +10,32 @@ KNOWN_PLUGINS = [
     "updraftplus", "wp-seo"
 ]
 
-def check_wp_fingerprint(target_url):
+def check_wp_fingerprint(target_url, session):
     """
     Vérifie si le site tourne sous WordPress pour activer la payload agressive WP.
     """
     try:
-        r = requests.get(target_url, timeout=5)
+        r = session.get(target_url, timeout=5)
         if "wp-content" in r.text or "wp-includes" in r.text or "WordPress" in r.headers.get("X-Powered-By", ""):
             return True
         
         # Test du RSS
         rss_url = target_url.rstrip('/') + "/feed/"
-        r_rss = requests.get(rss_url, timeout=5)
+        r_rss = session.get(rss_url, timeout=5)
         if "wordpress" in r_rss.text.lower():
             return True
     except requests.RequestException:
         pass
     return False
 
-def run_wp_scan(target_url, endpoints, forms):
+def run_wp_scan(target_url, endpoints, forms, session=None):
     results = []
+    if session is None:
+        import requests as session
+
     print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Checking for WordPress footprint...")
     
-    if not check_wp_fingerprint(target_url):
+    if not check_wp_fingerprint(target_url, session):
         print(f"  [{Fore.YELLOW}!{Style.RESET_ALL}] No strong WordPress signature found. Skipping Deep WP Scan.")
         # We can still force it if we want, but usually it's better to save thread power
         return results
@@ -45,7 +48,7 @@ def run_wp_scan(target_url, endpoints, forms):
     xmlrpc_url = f"{base_url}/xmlrpc.php"
     payload = "<?xml version='1.0' encoding='utf-8'?><methodCall><methodName>system.listMethods</methodName><params></params></methodCall>"
     try:
-        r = requests.post(xmlrpc_url, data=payload, timeout=5)
+        r = session.post(xmlrpc_url, data=payload, timeout=5)
         if "methodResponse" in r.text or "server error. requested method" in r.text:
             res = f"XML-RPC is active! Vulnerable to Pingback SSRF: {xmlrpc_url}"
             print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
@@ -56,7 +59,7 @@ def run_wp_scan(target_url, endpoints, forms):
     # 2. WP-Json API Users Enumeration
     api_url = f"{base_url}/wp-json/wp/v2/users"
     try:
-        r = requests.get(api_url, timeout=5)
+        r = session.get(api_url, timeout=5)
         if r.status_code == 200 and "id" in r.text and "name" in r.text:
             data = r.json()
             users = [u.get('slug') for u in data if isinstance(u, dict)]
@@ -70,7 +73,7 @@ def run_wp_scan(target_url, endpoints, forms):
     # 3. wp-cron.php Abuse
     cron_url = f"{base_url}/wp-cron.php"
     try:
-        r = requests.get(cron_url, timeout=5)
+        r = session.get(cron_url, timeout=5)
         if r.status_code == 200:
             res = f"wp-cron.php is accessible. Potential vector for application DDoS: {cron_url}"
             print(f"  [{Fore.YELLOW}!{Style.RESET_ALL}] {res}")
@@ -81,7 +84,7 @@ def run_wp_scan(target_url, endpoints, forms):
     # 4. Multisite & Admin Interfaces
     ms_signup = f"{base_url}/wp-signup.php"
     try:
-        r = requests.get(ms_signup, timeout=5)
+        r = session.get(ms_signup, timeout=5)
         if r.status_code == 200 and "registration" in r.text.lower():
             res = "Possible WordPress Multisite (WPMU) configuration detected via wp-signup.php"
             print(f"  [{Fore.YELLOW}!{Style.RESET_ALL}] {res}")
@@ -91,7 +94,7 @@ def run_wp_scan(target_url, endpoints, forms):
 
     admin_url = f"{base_url}/wp-admin/"
     try:
-        r = requests.get(admin_url, allow_redirects=False, timeout=5)
+        r = session.get(admin_url, allow_redirects=False, timeout=5)
         if r.status_code in [200, 301, 302]:
             res = f"Admin panel is publicly exposed (no IP restriction): {admin_url}"
             print(f"  [{Fore.YELLOW}!{Style.RESET_ALL}] {res}")
@@ -107,7 +110,7 @@ def run_wp_scan(target_url, endpoints, forms):
     for backup in backups:
         b_url = f"{base_url}/{backup}"
         try:
-            r = requests.get(b_url, timeout=3)
+            r = session.get(b_url, timeout=3)
             # Avoid generic 200 OK from themes
             if r.status_code == 200 and "html" not in r.headers.get('Content-Type', ''):
                 res = f"Critical information disclosure (Configuration/Backup): {b_url}"
@@ -122,7 +125,7 @@ def run_wp_scan(target_url, endpoints, forms):
     for plugin in KNOWN_PLUGINS:
         p_url = f"{base_url}/wp-content/plugins/{plugin}/readme.txt"
         try:
-            r = requests.get(p_url, timeout=3)
+            r = session.get(p_url, timeout=3)
             if r.status_code == 200 and ("Plugin Name" in r.text or "Stable tag" in r.text):
                 plugins_found.append(plugin)
         except requests.RequestException:

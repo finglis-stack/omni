@@ -9,20 +9,32 @@ from colorama import init, Fore, Style
 from collections import defaultdict
 from core.crawler import Crawler
 from core.reporter import Reporter
-from modules.auto_exploit import run_auto_exploit
+from core.stealth_session import StealthSession
 from core.waf_evasion import WAFEngine
+from modules.auto_exploit import run_auto_exploit
 
 # Initialize colorama
 init(autoreset=True)
 
 class OmniScan:
-    def __init__(self, target_url, threads=5):
+    def __init__(self, target_url, threads=5, stealth="light", proxy=None,
+                 proxy_file=None, rotate_ua=25, impersonate=None):
         self.target_url = target_url
         self.threads = threads
         self.domain = urlparse(target_url).netloc
         self.results = defaultdict(list)
-        self.waf = WAFEngine()
         self.lock = threading.Lock()
+
+        # ─── Stealth Engine ───
+        self.waf = WAFEngine()
+        self.session = StealthSession(
+            stealth_level=stealth,
+            proxy=proxy,
+            proxy_file=proxy_file,
+            rotate_ua_every=rotate_ua,
+            impersonate=impersonate,
+            waf_engine=self.waf,
+        )
     
     def display_banner(self):
         banner = f"""
@@ -34,7 +46,7 @@ class OmniScan:
 \____/_/ /_/ /_/_/ /_/_/ /____/\___/\__,_/_/ /_/  
                                                   
 {Style.RESET_ALL}
-        {Fore.WHITE}Advanced Web Vulnerability Scanner v3.0 (Async/Threaded){Style.RESET_ALL}
+        {Fore.WHITE}Advanced Web Vulnerability Scanner v4.0 (Stealth){Style.RESET_ALL}
         Target: {Fore.YELLOW}{self.target_url}{Style.RESET_ALL}
         Threads: {self.threads}
         """
@@ -54,16 +66,20 @@ class OmniScan:
                 return
             
             sig = inspect.signature(run_func)
-            kwargs = {}
             args = [self.target_url]
             
-            # Map parameters based on signature
-            if 'endpoints' in sig.parameters:
+            # Inject parameters based on function signature
+            params = list(sig.parameters.keys())
+            if len(params) > 1 and params[1] == 'endpoints':
                 args.append(self.results.get('endpoints', []))
-            if 'forms' in sig.parameters:
+            if len(params) > 2 and params[2] == 'forms':
                 args.append(self.results.get('forms', []))
-            if 'waf_engine' in sig.parameters:
-                args.append(self.waf)
+            
+            # Inject session or waf_engine
+            if 'session' in sig.parameters:
+                args.append(self.session)
+            elif 'waf_engine' in sig.parameters:
+                args.append(self.session)  # session replaces waf_engine
                 
             res = run_func(*args)
             if res:
@@ -90,7 +106,7 @@ class OmniScan:
         print(f"\n{'='*60}")
         print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Phase 1: WAF Detection")
         print(f"{'='*60}")
-        detected_waf = self.waf.detect(self.target_url)
+        detected_waf = self.waf.detect(self.target_url, session=self.session)
         if detected_waf:
             self.results["waf_detection"].append({"type": "waf_detected", "desc": f"WAF Detected: {detected_waf}", "severity": "Info"})
 
@@ -102,10 +118,14 @@ class OmniScan:
         print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Phase 2: Async Crawling & Endpoint Discovery")
         print(f"{'='*60}")
         
-        crawler = Crawler(self.target_url, max_concurrent=self.threads * 4)
+        crawler = Crawler(self.target_url, max_concurrent=self.threads * 4,
+                          headers=self.session.get_headers(),
+                          proxy=self.session.get_proxy_url())
         crawler.crawl()
         self.results["endpoints"] = crawler.get_endpoints()
         self.results["forms"] = crawler.get_forms()
+
+        print(f"[{Fore.GREEN}+{Style.RESET_ALL}] Found {len(self.results['endpoints'])} endpoints and {len(self.results['forms'])} forms.")
 
         # ========== PHASE 3: ACTIVE VULN SCANNING ==========
         self._run_phase("Active Vulnerability Scanning", 
@@ -125,7 +145,7 @@ class OmniScan:
         print(f"{'='*60}")
         try:
             res = run_auto_exploit(
-                self.target_url, self.results.get("endpoints", []), self.results.get("forms", []), self.results
+                self.target_url, self.results.get("endpoints", []), self.results.get("forms", []), self.results, self.session
             )
             if res:
                 self.results["auto_exploit"] = res
@@ -171,9 +191,16 @@ class OmniScan:
         print(f"  {'='*50}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="OmniScan - Advanced Web Vulnerability Scanner v3.0")
+    parser = argparse.ArgumentParser(description="OmniScan - Advanced Web Vulnerability Scanner v4.0 (Stealth)")
     parser.add_argument("-u", "--url", required=True, help="Target URL (e.g., http://example.com/)")
     parser.add_argument("-t", "--threads", type=int, default=5, help="Number of concurrent threads")
+    parser.add_argument("--stealth", choices=["none", "light", "normal", "paranoid"], default="light",
+                        help="Stealth timing profile (default: light)")
+    parser.add_argument("--proxy", help="Proxy URL (e.g., socks5://127.0.0.1:9050)")
+    parser.add_argument("--proxy-file", help="File with proxy list (one per line) for rotation")
+    parser.add_argument("--rotate-ua", type=int, default=25, help="Rotate User-Agent every N requests (default: 25)")
+    parser.add_argument("--impersonate", choices=["chrome", "firefox", "safari", "edge"],
+                        help="Browser TLS fingerprint to impersonate (JA3 spoofing)")
     
     args = parser.parse_args()
     
@@ -181,5 +208,13 @@ if __name__ == "__main__":
         print(f"[{Fore.RED}!{Style.RESET_ALL}] URL must start with http:// or https://")
         sys.exit(1)
 
-    scanner = OmniScan(args.url, args.threads)
+    scanner = OmniScan(
+        args.url,
+        threads=args.threads,
+        stealth=args.stealth,
+        proxy=args.proxy,
+        proxy_file=args.proxy_file,
+        rotate_ua=args.rotate_ua,
+        impersonate=args.impersonate,
+    )
     scanner.run()

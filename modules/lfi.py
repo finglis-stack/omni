@@ -14,7 +14,9 @@ LFI_INDICATORS = [
     "[extensions]" # common in win.ini
 ]
 
-def run_lfi_scan(target_url, endpoints, forms):
+def run_lfi_scan(target_url, endpoints, forms, session=None):
+    if session is None:
+        import requests as session
     print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running Local File Inclusion (LFI) Scan...")
     results = []
 
@@ -35,7 +37,7 @@ def run_lfi_scan(target_url, endpoints, forms):
                 test_url = urlunparse(parsed_url._replace(query=new_query))
                 
                 try:
-                    r = requests.get(test_url, timeout=5)
+                    r = session.get(test_url, timeout=5)
                     content = r.text
                     
                     for indicator in LFI_INDICATORS:

@@ -32,11 +32,11 @@ THEMES = [
     "flavor-starter-developer",
 ]
 
-def _enum_users_rest(base):
+def _enum_users_rest(base, session):
     """Enumerate users via REST API."""
     users = []
     try:
-        r = requests.get(f"{base}/wp-json/wp/v2/users", timeout=5)
+        r = session.get(f"{base}/wp-json/wp/v2/users", timeout=5)
         if r.status_code == 200:
             data = r.json()
             for u in data:
@@ -46,12 +46,12 @@ def _enum_users_rest(base):
         pass
     return users
 
-def _enum_users_author(base):
+def _enum_users_author(base, session):
     """Enumerate users via ?author=N."""
     users = []
     for i in range(1, 20):
         try:
-            r = requests.get(f"{base}/?author={i}", timeout=5, allow_redirects=False)
+            r = session.get(f"{base}/?author={i}", timeout=5, allow_redirects=False)
             if r.status_code in [301, 302]:
                 loc = r.headers.get("Location", "")
                 match = re.search(r'/author/([^/]+)', loc)
@@ -65,13 +65,13 @@ def _enum_users_author(base):
             continue
     return users
 
-def _enum_plugins(base):
+def _enum_plugins(base, session):
     """Enumerate plugins via readme.txt and main PHP file probing."""
     found = []
     for plugin in PLUGINS:
         url = f"{base}/wp-content/plugins/{plugin}/readme.txt"
         try:
-            r = requests.get(url, timeout=3)
+            r = session.get(url, timeout=3)
             if r.status_code == 200 and ("==" in r.text or "Stable tag" in r.text or "Plugin Name" in r.text):
                 version = "unknown"
                 v_match = re.search(r'Stable tag:\s*([\d.]+)', r.text, re.IGNORECASE)
@@ -82,13 +82,13 @@ def _enum_plugins(base):
             continue
     return found
 
-def _enum_themes(base):
+def _enum_themes(base, session):
     """Enumerate themes via style.css probing."""
     found = []
     for theme in set(THEMES):
         url = f"{base}/wp-content/themes/{theme}/style.css"
         try:
-            r = requests.get(url, timeout=3)
+            r = session.get(url, timeout=3)
             if r.status_code == 200 and "Theme Name" in r.text:
                 version = "unknown"
                 v_match = re.search(r'Version:\s*([\d.]+)', r.text)
@@ -99,7 +99,7 @@ def _enum_themes(base):
             continue
     return found
 
-def _check_directory_listing(base):
+def _check_directory_listing(base, session):
     """Check for open directory listings in wp-content."""
     dirs_to_check = [
         "/wp-content/uploads/", "/wp-content/plugins/",
@@ -110,19 +110,19 @@ def _check_directory_listing(base):
     open_dirs = []
     for d in dirs_to_check:
         try:
-            r = requests.get(f"{base}{d}", timeout=3)
+            r = session.get(f"{base}{d}", timeout=3)
             if r.status_code == 200 and ("Index of" in r.text or "Parent Directory" in r.text or "<title>Index" in r.text):
                 open_dirs.append(f"{base}{d}")
         except requests.RequestException:
             continue
     return open_dirs
 
-def _check_upload_vuln(base):
+def _check_upload_vuln(base, session):
     """Check if uploads directory is browsable and contains interesting files."""
     findings = []
     url = f"{base}/wp-content/uploads/"
     try:
-        r = requests.get(url, timeout=5)
+        r = session.get(url, timeout=5)
         if r.status_code == 200 and ("Index of" in r.text or "Parent Directory" in r.text):
             findings.append(f"Uploads directory listing enabled: {url}")
             # Check for PHP files in uploads (webshell indicators)
@@ -132,7 +132,7 @@ def _check_upload_vuln(base):
         pass
     return findings
 
-def _check_wp_version(base):
+def _check_wp_version(base, session):
     """Extract WordPress core version."""
     indicators = [
         (f"{base}/feed/", r'<generator>https?://wordpress\.org/\?v=([\d.]+)</generator>'),
@@ -142,7 +142,7 @@ def _check_wp_version(base):
     ]
     for url, pattern in indicators:
         try:
-            r = requests.get(url, timeout=5)
+            r = session.get(url, timeout=5)
             match = re.search(pattern, r.text)
             if match:
                 return match.group(1)
@@ -151,15 +151,18 @@ def _check_wp_version(base):
     return None
 
 
-def run_wp_enum(target_url, endpoints=None, forms=None):
+def run_wp_enum(target_url, endpoints=None, forms=None, session=None):
     """Advanced WordPress enumeration module."""
     print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running Advanced WP Enumeration...")
+    if session is None:
+        import requests as session
+
     results = []
     base = target_url.rstrip('/')
 
     # --- 1. WP Core Version ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Detecting WordPress core version...")
-    wp_ver = _check_wp_version(base)
+    wp_ver = _check_wp_version(base, session)
     if wp_ver:
         res = f"WordPress version detected: {wp_ver}"
         print(f"  [{Fore.YELLOW}!{Style.RESET_ALL}] {res}")
@@ -176,7 +179,7 @@ def run_wp_enum(target_url, endpoints=None, forms=None):
 
     # --- 2. User Enumeration ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Enumerating users via REST API...")
-    users_rest = _enum_users_rest(base)
+    users_rest = _enum_users_rest(base, session)
     if users_rest:
         slugs = [u['slug'] for u in users_rest]
         res = f"REST API user enumeration: {', '.join(slugs)}"
@@ -184,7 +187,7 @@ def run_wp_enum(target_url, endpoints=None, forms=None):
         results.append({"type": "wp_user_enum_rest", "desc": res, "severity": "High"})
 
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Enumerating users via author archives...")
-    users_author = _enum_users_author(base)
+    users_author = _enum_users_author(base, session)
     if users_author:
         slugs = [u['slug'] for u in users_author]
         res = f"Author archive user enumeration (IDs 1-19): {', '.join(slugs)}"
@@ -193,7 +196,7 @@ def run_wp_enum(target_url, endpoints=None, forms=None):
 
     # --- 3. Plugin Enumeration ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Enumerating plugins ({len(PLUGINS)} candidates)...")
-    plugins = _enum_plugins(base)
+    plugins = _enum_plugins(base, session)
     if plugins:
         for p in plugins:
             res = f"Plugin found: {p['name']} (version: {p['version']})"
@@ -202,7 +205,7 @@ def run_wp_enum(target_url, endpoints=None, forms=None):
 
     # --- 4. Theme Enumeration ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Enumerating themes...")
-    themes = _enum_themes(base)
+    themes = _enum_themes(base, session)
     if themes:
         for t in themes:
             res = f"Theme found: {t['name']} (version: {t['version']})"
@@ -211,14 +214,14 @@ def run_wp_enum(target_url, endpoints=None, forms=None):
 
     # --- 5. Directory Listing ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Checking for open directory listings...")
-    open_dirs = _check_directory_listing(base)
+    open_dirs = _check_directory_listing(base, session)
     for d in open_dirs:
         res = f"Directory listing enabled: {d}"
         print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
         results.append({"type": "wp_dir_listing", "desc": res, "severity": "Medium"})
 
     # --- 6. Upload Directory Analysis ---
-    upload_findings = _check_upload_vuln(base)
+    upload_findings = _check_upload_vuln(base, session)
     for f in upload_findings:
         print(f"  [{Fore.RED}!{Style.RESET_ALL}] {f}")
         sev = "Critical" if "webshell" in f.lower() or "php" in f.lower() else "Medium"
@@ -227,7 +230,7 @@ def run_wp_enum(target_url, endpoints=None, forms=None):
     # --- 7. WP-Cron Abuse ---
     cron_url = f"{base}/wp-cron.php"
     try:
-        r = requests.get(cron_url, timeout=5)
+        r = session.get(cron_url, timeout=5)
         if r.status_code == 200:
             res = f"wp-cron.php accessible — DDoS amplification vector: {cron_url}"
             print(f"  [{Fore.YELLOW}!{Style.RESET_ALL}] {res}")
@@ -238,7 +241,7 @@ def run_wp_enum(target_url, endpoints=None, forms=None):
     # --- 8. Registration & Login Pages ---
     reg_url = f"{base}/wp-login.php?action=register"
     try:
-        r = requests.get(reg_url, timeout=5)
+        r = session.get(reg_url, timeout=5)
         if r.status_code == 200 and "registration" in r.text.lower():
             res = f"User registration is OPEN: {reg_url}"
             print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
@@ -249,7 +252,7 @@ def run_wp_enum(target_url, endpoints=None, forms=None):
     # --- 9. Debug Mode ---
     debug_url = f"{base}/wp-content/debug.log"
     try:
-        r = requests.get(debug_url, timeout=5)
+        r = session.get(debug_url, timeout=5)
         if r.status_code == 200 and len(r.text) > 50 and "html" not in r.headers.get("Content-Type", ""):
             res = f"WordPress debug.log exposed ({len(r.text)} bytes): {debug_url}"
             print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")

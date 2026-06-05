@@ -61,10 +61,10 @@ def _is_redirect_to_evil(location):
     return False
 
 
-def _test_redirect(url, timeout=5):
+def _test_redirect(url, timeout=5, session=None):
     """Send a request and check if we get redirected to evil.com."""
     try:
-        r = requests.get(url, timeout=timeout, allow_redirects=False)
+        r = session.get(url, timeout=timeout, allow_redirects=False)
         
         if r.status_code in [301, 302, 303, 307, 308]:
             location = r.headers.get("Location", "")
@@ -97,7 +97,7 @@ def _test_redirect(url, timeout=5):
     return False, "", 0
 
 
-def _scan_known_redirect_paths(base_url, domain):
+def _scan_known_redirect_paths(base_url, domain, session=None):
     """Test common WordPress/CMS redirect paths."""
     findings = []
     
@@ -111,7 +111,7 @@ def _scan_known_redirect_paths(base_url, domain):
     ]
     
     for path in wp_paths:
-        is_vuln, location, status = _test_redirect(path)
+        is_vuln, location, status = _test_redirect(path, session=session)
         if is_vuln:
             findings.append({
                 "url": path,
@@ -122,11 +122,13 @@ def _scan_known_redirect_paths(base_url, domain):
     return findings
 
 
-def run_open_redirect_scan(target_url, endpoints=None, forms=None):
+def run_open_redirect_scan(target_url, endpoints=None, forms=None, session=None):
     """
     Open Redirect Detection Module.
     Tests URL parameters and known CMS paths for unvalidated redirects.
     """
+    if session is None:
+        import requests as session
     print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running Open Redirect Scanner...")
     results = []
     base_url = target_url.rstrip('/')
@@ -151,7 +153,7 @@ def run_open_redirect_scan(target_url, endpoints=None, forms=None):
                         new_query = urlencode(test_params, doseq=True)
                         test_url = urlunparse(parsed._replace(query=new_query))
                         
-                        is_vuln, location, status = _test_redirect(test_url)
+                        is_vuln, location, status = _test_redirect(test_url, session=session)
                         if is_vuln:
                             res = f"Open Redirect via param '{param_name}' at {url} → {location} (HTTP {status})"
                             print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
@@ -168,7 +170,7 @@ def run_open_redirect_scan(target_url, endpoints=None, forms=None):
         for payload in payloads[:2]:  # Top 2 payloads per param
             test_url = f"{base_url}/?{param}={payload}"
             
-            is_vuln, location, status = _test_redirect(test_url, timeout=3)
+            is_vuln, location, status = _test_redirect(test_url, timeout=3, session=session)
             if is_vuln:
                 res = f"Open Redirect via param '{param}' on base URL → {location} (HTTP {status})"
                 print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
@@ -190,7 +192,7 @@ def run_open_redirect_scan(target_url, endpoints=None, forms=None):
             for payload in payloads[:3]:
                 test_url = f"{domain_root}/?{param}={payload}"
                 
-                is_vuln, location, status = _test_redirect(test_url, timeout=3)
+                is_vuln, location, status = _test_redirect(test_url, timeout=3, session=session)
                 if is_vuln:
                     res = f"Open Redirect via param '{param}' on DOMAIN ROOT → {location} (HTTP {status}) — URL: {test_url}"
                     print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
@@ -206,7 +208,7 @@ def run_open_redirect_scan(target_url, endpoints=None, forms=None):
         ]
         
         for path in root_wp_paths:
-            is_vuln, location, status = _test_redirect(path, timeout=3)
+            is_vuln, location, status = _test_redirect(path, timeout=3, session=session)
             if is_vuln:
                 res = f"Open Redirect at domain root: {path} → {location} (HTTP {status})"
                 print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
@@ -214,7 +216,7 @@ def run_open_redirect_scan(target_url, endpoints=None, forms=None):
 
     # --- 3. WordPress/CMS Specific Redirect Paths ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Testing CMS-specific redirect vectors...")
-    wp_findings = _scan_known_redirect_paths(base_url, domain)
+    wp_findings = _scan_known_redirect_paths(base_url, domain, session=session)
     for f in wp_findings:
         res = f"CMS Open Redirect: {f['url']} → {f['redirect_to']} (HTTP {f['status']})"
         print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")

@@ -13,10 +13,10 @@ TEST_ORIGINS = [
 ]
 
 
-def _test_cors_origin(target_url, origin):
+def _test_cors_origin(target_url, origin, session=None):
     """Send a request with a specific Origin header and analyze CORS response."""
     try:
-        r = requests.get(
+        r = session.get(
             target_url,
             headers={"Origin": origin},
             timeout=5,
@@ -39,12 +39,14 @@ def _test_cors_origin(target_url, origin):
         return None
 
 
-def run_cors_scan(target_url, endpoints=None, forms=None):
+def run_cors_scan(target_url, endpoints=None, forms=None, session=None):
     """
     CORS Misconfiguration Scanner.
     Tests for: wildcard origins, origin reflection, null origin,
     credential leakage, and subdomain bypass patterns.
     """
+    if session is None:
+        import requests as session
     print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running CORS Misconfiguration Scan...")
     results = []
     domain = urlparse(target_url).netloc
@@ -61,7 +63,7 @@ def run_cors_scan(target_url, endpoints=None, forms=None):
     # --- 1. Check baseline (no Origin header) ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Checking baseline CORS configuration...")
     try:
-        r_base = requests.get(target_url, timeout=5)
+        r_base = session.get(target_url, timeout=5)
         base_acao = r_base.headers.get("Access-Control-Allow-Origin", "")
         
         if base_acao == "*":
@@ -80,7 +82,7 @@ def run_cors_scan(target_url, endpoints=None, forms=None):
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Testing {len(origins)} malicious origins...")
     
     for origin in origins:
-        result = _test_cors_origin(target_url, origin)
+        result = _test_cors_origin(target_url, origin, session=session)
         if not result:
             continue
             
@@ -111,7 +113,7 @@ def run_cors_scan(target_url, endpoints=None, forms=None):
             print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Testing {len(api_endpoints)} API endpoints...")
             
             for ep in api_endpoints[:10]:  # Limit to first 10
-                result = _test_cors_origin(ep, "https://evil.com")
+                result = _test_cors_origin(ep, "https://evil.com", session=session)
                 if result and result["acao"] == "https://evil.com":
                     res = f"CORS reflection on API endpoint: {ep}"
                     print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")
@@ -120,7 +122,7 @@ def run_cors_scan(target_url, endpoints=None, forms=None):
     # --- 4. Preflight check (OPTIONS) ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Testing preflight (OPTIONS) configuration...")
     try:
-        r = requests.options(
+        r = session.options(
             target_url,
             headers={
                 "Origin": "https://evil.com",

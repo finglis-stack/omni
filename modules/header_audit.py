@@ -129,17 +129,19 @@ def _check_cookie_flags(response):
     return issues
 
 
-def run_header_audit(target_url, endpoints=None, forms=None):
+def run_header_audit(target_url, endpoints=None, forms=None, session=None):
     """
     Comprehensive HTTP Security Header Audit.
     Tests presence, absence, and quality of all security-critical headers.
     """
+    if session is None:
+        import requests as session
     print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running Deep Security Header Audit...")
     results = []
 
     try:
         # Use GET instead of HEAD to also capture Set-Cookie and full response
-        response = requests.get(target_url, timeout=8, allow_redirects=True)
+        response = session.get(target_url, timeout=8, allow_redirects=True)
         headers = response.headers
     except requests.RequestException as e:
         print(f"  [{Fore.RED}!{Style.RESET_ALL}] Connection failed for header audit: {e}")
@@ -196,7 +198,7 @@ def run_header_audit(target_url, endpoints=None, forms=None):
         # Check if HTTP version also exists (no redirect)
         http_url = target_url.replace("https://", "http://", 1)
         try:
-            r = requests.get(http_url, timeout=5, allow_redirects=False)
+            r = session.get(http_url, timeout=5, allow_redirects=False)
             if r.status_code == 200:
                 res = f"HTTP version responds with 200 instead of redirecting to HTTPS — HSTS not enforced at server level"
                 print(f"  [{Fore.RED}!{Style.RESET_ALL}] {res}")

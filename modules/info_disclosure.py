@@ -150,7 +150,7 @@ def _fingerprint_from_headers(response):
     return findings
 
 
-def _probe_error_pages(base_url):
+def _probe_error_pages(base_url, session):
     """Send requests designed to trigger error pages and extract info from them."""
     findings = []
     
@@ -163,7 +163,7 @@ def _probe_error_pages(base_url):
     
     for url, desc in error_triggers:
         try:
-            r = requests.get(url, timeout=5)
+            r = session.get(url, timeout=5)
             body = r.text
             
             for pattern, pattern_desc in ERROR_PATTERNS:
@@ -176,14 +176,14 @@ def _probe_error_pages(base_url):
     return findings
 
 
-def _scan_sensitive_files(base_url):
+def _scan_sensitive_files(base_url, session):
     """Probe for sensitive files and directories."""
     findings = []
     
     for path, desc in ERROR_PATHS:
         url = base_url.rstrip('/') + path
         try:
-            r = requests.get(url, timeout=4)
+            r = session.get(url, timeout=4)
             
             # Meaningful response check — avoid custom 404 pages
             if r.status_code == 200:
@@ -237,17 +237,20 @@ def _scan_sensitive_files(base_url):
     return findings
 
 
-def run_info_disclosure(target_url, endpoints=None, forms=None):
+def run_info_disclosure(target_url, endpoints=None, forms=None, session=None):
     """
     Aggressive information disclosure & fingerprinting module.
     Identifies server technologies, versions, and maps to known CVEs.
     """
     print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running Information Disclosure & Fingerprinting Scan...")
+    if session is None:
+        import requests as session
+
     results = []
     base_url = target_url.rstrip('/')
 
     try:
-        response = requests.get(target_url, timeout=8)
+        response = session.get(target_url, timeout=8)
     except requests.RequestException as e:
         print(f"  [{Fore.RED}!{Style.RESET_ALL}] Connection failed: {e}")
         return results
@@ -279,7 +282,7 @@ def run_info_disclosure(target_url, endpoints=None, forms=None):
 
     # --- 3. Error Page Probing ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Probing error pages for info leaks...")
-    error_findings = _probe_error_pages(base_url)
+    error_findings = _probe_error_pages(base_url, session)
     for desc, match, url in error_findings:
         res = f"Error page leak — {desc}: '{match}' at {url}"
         print(f"  [{Fore.YELLOW}!{Style.RESET_ALL}] {res}")
@@ -287,7 +290,7 @@ def run_info_disclosure(target_url, endpoints=None, forms=None):
 
     # --- 4. Sensitive File Scan ---
     print(f"  [{Fore.BLUE}*{Style.RESET_ALL}] Scanning for {len(ERROR_PATHS)} sensitive files/paths...")
-    file_findings = _scan_sensitive_files(base_url)
+    file_findings = _scan_sensitive_files(base_url, session)
     for ftype, desc, severity in file_findings:
         print(f"  [{Fore.RED}!{Style.RESET_ALL}] {desc}")
         results.append({"type": ftype, "desc": desc, "severity": severity})

@@ -9,12 +9,14 @@ PAYLOADS = [
     "<img src=x onerror=alert(1)>"
 ]
 
-def run_xss_scan(target_url, endpoints, forms, waf_engine=None):
+def run_xss_scan(target_url, endpoints, forms, session=None):
+    if session is None:
+        import requests as session
     print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running Smart Contextual XSS Scan...")
     results = []
     
     # Initialize Smart Fuzzer
-    fuzzer = SmartFuzzer(waf_engine=waf_engine)
+    fuzzer = SmartFuzzer(waf_engine=session)
 
     # 1. Scan query parameters in endpoints using Smart Fuzzer
     for url in endpoints:
@@ -31,8 +33,8 @@ def run_xss_scan(target_url, endpoints, forms, waf_engine=None):
         method = form["method"]
         
         for payload in PAYLOADS:
-            if waf_engine:
-                payload = waf_engine.evade(payload)
+            if hasattr(session, 'evade_payload'):
+                payload = session.evade_payload(payload)
                 
             data = {}
             for input_field in form["inputs"]:
@@ -40,9 +42,9 @@ def run_xss_scan(target_url, endpoints, forms, waf_engine=None):
                 
             try:
                 if method == 'post':
-                    r = waf_engine.request('POST', action, data=data, timeout=5) if waf_engine else requests.post(action, data=data, timeout=5)
+                    r = session.post(action, data=data, timeout=5)
                 else:
-                    r = waf_engine.request('GET', action, params=data, timeout=5) if waf_engine else requests.get(action, params=data, timeout=5)
+                    r = session.get(action, params=data, timeout=5)
                     
                 if payload in r.text:
                     res = f"Reflected XSS in form {action} via {method.upper()} with payload {payload[:20]}..."

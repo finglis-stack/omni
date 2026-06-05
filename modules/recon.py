@@ -1,13 +1,15 @@
 import requests
 from colorama import Fore, Style
 
-def run_recon(target_url):
+def run_recon(target_url, session=None):
+    if session is None:
+        import requests as session
     print(f"[{Fore.BLUE}*{Style.RESET_ALL}] Running Reconnaissance...")
     results = []
     
     # 1. Security Headers Analysis
     try:
-        response = requests.head(target_url, timeout=5)
+        response = session.head(target_url, timeout=5)
         headers = response.headers
         
         critical_headers = [
@@ -47,7 +49,7 @@ def run_recon(target_url):
     for file in sensitive_files:
         url = site_base + file
         try:
-            r = requests.get(url, timeout=3)
+            r = session.get(url, timeout=3)
             if r.status_code == 200 and "html" not in r.headers.get("Content-Type", ""):
                 # Basic check to avoid false positive 200s returning custom error pages
                 res = f"Potential sensitive file found: {url}"

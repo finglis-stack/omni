@@ -5,3 +5,5 @@ tqdm
 jinja2
 dnspython
 aiohttp
+curl_cffi
+PySocks

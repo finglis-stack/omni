@@ -6,7 +6,7 @@ from colorama import Fore, Style
 import re
 
 class Crawler:
-    def __init__(self, base_url, max_depth=3, max_concurrent=20):
+    def __init__(self, base_url, max_depth=3, max_concurrent=20, headers=None, proxy=None):
         self.base_url = base_url.rstrip('/')
         self.domain = urlparse(base_url).netloc
         self.max_depth = max_depth
@@ -15,8 +15,9 @@ class Crawler:
         self.endpoints = set()
         self.forms = []
         self.js_files = set()
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        self.proxy = proxy
+        self.headers = headers or {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
         }
 
     def crawl(self):
