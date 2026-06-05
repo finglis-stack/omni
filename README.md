@@ -1,6 +1,6 @@
 # OmniScan v3.0
 
-*Fait par Félix Inglis-Chevarie, école secondaire Marie-Anne*
+*Made by Félix Inglis-Chevarie, Marie-Anne High School*
 
 OmniScan is an **Advanced Web Vulnerability Scanner and Auto-Exploitation Framework**, heavily optimized for speed, modularity, and offensive capabilities. 
 
